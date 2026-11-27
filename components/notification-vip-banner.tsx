@@ -3,7 +3,7 @@
 import { useCallback, useState, useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
 import OneSignal from "react-onesignal";
-import { appConfigClient } from "@/lib/app-config.client";
+import { isOneSignalReady, requestPushSubscription } from "@/components/onesignal-initializer";
 
 const DISMISS_STORAGE_KEY = "vipBannerDismissedUntil";
 const DISMISS_DURATION_MS = 24 * 60 * 60 * 1000;
@@ -19,27 +19,25 @@ function isDismissedRecently(): boolean {
   }
 }
 
-function isOptedIn(): boolean {
-  return (
-    Notification.permission === "granted" ||
-    OneSignal.User.PushSubscription.optedIn === true
-  );
-}
-
 function subscribe(onStoreChange: () => void) {
   OneSignal.User.PushSubscription.addEventListener("change", onStoreChange);
   window.addEventListener("storage", onStoreChange);
+  window.addEventListener("push-sync-settled", onStoreChange);
   window.addEventListener(RECHECK_EVENT, onStoreChange);
   return () => {
     OneSignal.User.PushSubscription.removeEventListener("change", onStoreChange);
     window.removeEventListener("storage", onStoreChange);
+    window.removeEventListener("push-sync-settled", onStoreChange);
     window.removeEventListener(RECHECK_EVENT, onStoreChange);
   };
 }
 
 function getSnapshot(): boolean {
-  if (typeof Notification === "undefined") return false;
-  return !isOptedIn() && !isDismissedRecently();
+  if (!isOneSignalReady() || typeof Notification === "undefined" || Notification.permission === "denied") {
+    return false;
+  }
+  const { id, optedIn } = OneSignal.User.PushSubscription;
+  return !(id && optedIn) && !isDismissedRecently();
 }
 
 function getServerSnapshot(): boolean {
@@ -51,22 +49,17 @@ function notifyStateChanged() {
 }
 
 type NotificationVipBannerProps = {
-  notificationsEnabled: boolean;
+  activating: boolean;
+  onActivationChange: (activating: boolean) => void;
 };
 
 export function NotificationVipBanner({
-  notificationsEnabled,
+  activating,
+  onActivationChange,
 }: NotificationVipBannerProps) {
   const pathname = usePathname();
-  const [activating, setActivating] = useState(false);
+  const [activationFailed, setActivationFailed] = useState(false);
   const eligible = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
-
-  const isAdminRoute = pathname?.startsWith("/admin") ?? false;
-  const visible =
-    notificationsEnabled &&
-    Boolean(appConfigClient.oneSignalAppId) &&
-    !isAdminRoute &&
-    eligible;
 
   const dismiss = useCallback(() => {
     try {
@@ -81,16 +74,19 @@ export function NotificationVipBanner({
   }, []);
 
   const activate = useCallback(async () => {
-    setActivating(true);
+    setActivationFailed(false);
+    onActivationChange(true);
     try {
-      await OneSignal.Notifications.requestPermission();
+      await requestPushSubscription();
+    } catch {
+      setActivationFailed(true);
     } finally {
-      setActivating(false);
       notifyStateChanged();
+      onActivationChange(false);
     }
-  }, []);
+  }, [onActivationChange]);
 
-  if (!visible) {
+  if (pathname !== "/" || !eligible) {
     return null;
   }
 
@@ -150,6 +146,11 @@ export function NotificationVipBanner({
             Agora não
           </button>
         </div>
+        {activationFailed && (
+          <p className="text-sm text-slate-900" role="status">
+            Não foi possível ativar as notificações. Tente novamente.
+          </p>
+        )}
       </div>
     </div>
   );

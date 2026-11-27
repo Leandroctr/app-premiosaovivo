@@ -1,12 +1,13 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import { NotificationVipBanner } from "@/components/notification-vip-banner";
 import { OneSignalInitializer } from "@/components/onesignal-initializer";
 import { ServiceWorkerRegister } from "@/components/service-worker-register";
 import { getAppSettings } from "@/lib/app-settings.server";
+import { getPwaIcons } from "@/lib/pwa-icon-assets";
 
 export async function generateMetadata(): Promise<Metadata> {
   const settings = await getAppSettings();
+  const icons = getPwaIcons(settings);
 
   return {
     title: settings.appName,
@@ -15,10 +16,10 @@ export async function generateMetadata(): Promise<Metadata> {
     manifest: "/manifest.webmanifest",
     metadataBase: settings.publicUrl ? new URL(settings.publicUrl) : undefined,
     icons: {
-      icon: settings.faviconUrl || settings.icon192Url || "/icons/icon-192.svg",
+      icon: icons.favicon,
       apple: {
-        url: settings.icon192Url || "/icons/icon-192.svg",
-        sizes: "180x180",
+        url: icons.icon192,
+        sizes: "192x192",
       },
     },
     appleWebApp: {
@@ -52,14 +53,13 @@ export default async function RootLayout({
       <head>
         <link
           rel="apple-touch-icon"
-          sizes="180x180"
-          href={settings.icon192Url || "/icons/icon-192.svg"}
+          sizes="192x192"
+          href={getPwaIcons(settings).icon192}
         />
       </head>
       <body>
         <ServiceWorkerRegister />
         <OneSignalInitializer />
-        <NotificationVipBanner notificationsEnabled={settings.notificationsEnabled} />
         {children}
       </body>
     </html>

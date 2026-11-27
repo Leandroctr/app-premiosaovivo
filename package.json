@@ -13,7 +13,7 @@
     "test:auth:real": "node --test tests/admin-auth.integration.mjs",
     "test:upload": "node --experimental-strip-types --test tests/upload-security.test.mjs",
     "test:push-hardening": "node --experimental-strip-types --test tests/push-hardening.test.mjs",
-    "test:pwa": "node --test tests/service-worker.test.mjs",
+    "test:pwa": "node --experimental-strip-types --test tests/service-worker.test.mjs tests/pwa-install.test.mjs",
     "test:schema-baseline": "node --test tests/schema-baseline.test.mjs",
     "test:admin-audit": "node --experimental-strip-types --test tests/admin-audit.test.mjs",
     "test:push-subscriptions": "node --experimental-strip-types --test tests/push-subscriptions.test.mjs",
@@ -24,11 +24,11 @@
     "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "2.108.2",
     "busboy": "1.6.0",
-    "next": "16.3.4",
+    "next": "16.4.6",
     "react": "19.2.7",
     "react-dom": "19.2.7",
     "react-onesignal": "^3.5.6",
-    "sharp": "^0.35.2"
+    "sharp": "0.35.5"
   },
   "devDependencies": {
     "@eslint/eslintrc": "3.3.7",
