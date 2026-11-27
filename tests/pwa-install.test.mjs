@@ -27,6 +27,12 @@ test("the offline launcher stays open and reloads settings when connectivity cha
   assert.match(homeSource, /if \(!isOnline\) return;[\s\S]*fetch\("\/api\/settings"[\s\S]*\}, \[isOnline\]\)/);
 });
 
+test("the offline splash uses the exact cached premium icon URL", () => {
+  assert.match(homeSource, /offlineIconUrl=\{isOnline \? undefined : fallbackIcons\.icon512\}/);
+  assert.match(splashSource, /offlineIcon \? \[offlineIcon\] : \[logo, icon\]/);
+  assert.match(splashSource, /overrideSrc=\{offlineIcon\}/);
+});
+
 test("the approved brand icons replace legacy assets and later panel uploads take precedence", () => {
   const legacy = "https://myivwdbnpbuooncehwds.supabase.co/storage/v1/object/public/app-assets";
   assert.deepEqual(getPwaIcons({

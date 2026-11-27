@@ -122,6 +122,7 @@ export default function Home() {
         appName={settings.appName}
         logoUrl={settings.logoUrl}
         iconUrl={getPwaIcons(settings).icon512}
+        offlineIconUrl={isOnline ? undefined : fallbackIcons.icon512}
         splashImageUrl={settings.splashImageUrl}
         themeColor={settings.themeColor}
         backgroundColor={settings.backgroundColor}

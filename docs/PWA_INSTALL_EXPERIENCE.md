@@ -12,6 +12,8 @@ O worker v3 replica a migração validada no White Label, com fallback público 
 
 A preparação offline do worker v3 inclui os CSS e JavaScript versionados de mesma origem referenciados pelo fallback e o ícone local de 512 px. O worker valida a URL, o tipo e os cabeçalhos de cada recurso e grava o HTML após concluir a preparação. Assim, a primeira abertura pode ocorrer sem conexão após visitar somente a Central. Uma atualização incompleta preserva o último fallback válido e os recursos das versões anteriores. Depois de reconectar, o launcher volta a buscar as configurações e navega uma única vez.
 
+Enquanto estiver offline, o splash usa o PNG premium pela URL exata preparada pelo worker. O parâmetro de deployment que o Next.js adiciona às imagens online permanece no fluxo online.
+
 # PWA Install Experience
 
 **Projeto:** app-big-pwa  
