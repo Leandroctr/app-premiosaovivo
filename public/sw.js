@@ -97,7 +97,7 @@ async function getOfflineFallback() {
   }
 }
 
-async function precachePublicResource(pathname, type) {
+async function fetchPublicResource(pathname, type) {
   const response = await fetch(new URL(pathname, self.location.origin).href, {
     headers: { Accept: "*/*" },
     credentials: "omit",
@@ -105,17 +105,68 @@ async function precachePublicResource(pathname, type) {
     redirect: "error",
     cache: "no-store",
   });
-  if (!isPublicResource(response, pathname, type)) {
+  if (isPublicResource(response, pathname, type)) {
+    return response;
+  }
+}
+
+async function precachePublicResource(pathname, type) {
+  const response = await fetchPublicResource(pathname, type);
+  if (!response) {
     return false;
   }
-
   const cache = await caches.open(CACHE_NAME);
   await cache.put(pathname, response);
   return true;
 }
 
+function getFallbackAssets(html) {
+  const assets = new Map();
+  for (const [, tag, attributes] of html.matchAll(/<(script|link)\b([^>]*)>/gi)) {
+    const script = tag.toLowerCase() === "script";
+    if (!script && !/\srel=["']stylesheet["']/i.test(attributes)) {
+      continue;
+    }
+    const [, , path] = attributes.match(script
+      ? /\ssrc=(["'])([^"']+)\1/i
+      : /\shref=(["'])([^"']+)\1/i) ?? [];
+    const extension = path?.match(/^\/_next\/static\/(?:immutable\/)?chunks\/[\w-]+\.(js|css)(?:\?dpl=dpl_[\w-]+)?$/)?.[1];
+    if (extension === (script ? "js" : "css")) {
+      assets.set(path, script ? "application/javascript" : "text/css");
+    }
+  }
+  return assets;
+}
+
+async function prepareOfflineFallback() {
+  const fallback = await fetchPublicResource(OFFLINE_FALLBACK_URL, "text/html");
+  if (!fallback) {
+    return false;
+  }
+  const assets = getFallbackAssets(await fallback.clone().text());
+  const types = new Set(assets.values());
+  if (!types.has("text/css") || !types.has("application/javascript")) {
+    return false;
+  }
+  assets.set(SPLASH_ICON_URL, "image/png");
+  const ready = await Promise.all([...assets].map(([path, type]) =>
+    caches.match(path, { cacheName: CACHE_NAME })
+      .then((cached) => isPublicResource(cached, path, type) || precachePublicResource(path, type))
+      .catch(() => false),
+  ));
+  if (!ready.every(Boolean)) {
+    return false;
+  }
+
+  // Publish the document only after its dependencies are available. A failed
+  // refresh leaves the previously validated document and its assets in place.
+  const cache = await caches.open(CACHE_NAME);
+  await cache.put(OFFLINE_FALLBACK_URL, fallback);
+  return true;
+}
+
 function refreshOfflineFallback() {
-  fallbackRefresh ??= precachePublicResource(OFFLINE_FALLBACK_URL, "text/html")
+  fallbackRefresh ??= prepareOfflineFallback()
     .catch(() => false)
     .finally(() => {
       fallbackRefresh = undefined;
@@ -127,7 +178,6 @@ async function installOfflineCache() {
   const [updated] = await Promise.all([
     refreshOfflineFallback(),
     precachePublicResource(MANIFEST_URL, "application/manifest+json").catch(() => false),
-    precachePublicResource(SPLASH_ICON_URL, "image/png").catch(() => false),
   ]);
   if (!updated && !(await getOfflineFallback())) {
     throw new Error("No valid public offline document");
