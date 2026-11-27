@@ -10,6 +10,8 @@ const LEGACY = "app-big-v2";
 const FALLBACK = "/pwa-offline";
 const MANIFEST = "/manifest.webmanifest";
 const SPLASH_ICON = "/icons/premios-ao-vivo-icon-512.png";
+const FALLBACK_CSS = "/_next/static/immutable/chunks/fallback.css";
+const FALLBACK_JS = "/_next/static/immutable/chunks/fallback.js?dpl=dpl_fixture";
 const JSONP_CSP = contentSecurityPolicy + "; script-src-elem 'self' https://api.onesignal.com/sync/123e4567-e89b-42d3-a456-426614174000/web";
 const swSource = readFileSync("public/sw.js", "utf8");
 
@@ -37,6 +39,26 @@ function responseFor(path, body, { headers, status, redirected = false } = {}) {
     url: { value: new URL(path, ORIGIN).href },
     redirected: { value: redirected },
   });
+}
+
+function fallbackDocument(text) {
+  return `<link data-precedence="next" href="${FALLBACK_CSS}" rel="stylesheet">
+    <script async src="${FALLBACK_JS}"></script><main>${text}</main>`;
+}
+
+function publicResource(url, text) {
+  const path = url.slice(ORIGIN.length);
+  if (path === FALLBACK) {
+    return responseFor(FALLBACK, fallbackDocument(text));
+  }
+  const types = {
+    [FALLBACK_CSS]: "text/css",
+    [FALLBACK_JS]: "application/javascript",
+    [SPLASH_ICON]: "image/png",
+    [MANIFEST]: "application/manifest+json",
+  };
+  assert.ok(types[path], "Unexpected fetch " + path);
+  return responseFor(path, text, { headers: { "Content-Type": types[path] } });
 }
 
 function cacheKey(input) {
@@ -140,8 +162,11 @@ test("root navigation returns online HTML before the uncredentialed fallback ref
   const calls = [];
   const worker = loadServiceWorker((request, options) => {
     calls.push([request, options]);
-    if (typeof request === "string") {
+    if (request === ORIGIN + FALLBACK) {
       return new Promise((resolve) => { completeRefresh = resolve; });
+    }
+    if (typeof request === "string") {
+      return Promise.resolve(publicResource(request, "asset"));
     }
     return Promise.resolve(responseFor("/", "online", {
       headers: { "Cache-Control": "private, no-store", "Content-Security-Policy": JSONP_CSP },
@@ -162,10 +187,10 @@ test("root navigation returns online HTML before the uncredentialed fallback ref
     redirect: "error",
     cache: "no-store",
   });
-  completeRefresh(responseFor(FALLBACK, "fresh offline document"));
+  completeRefresh(publicResource(ORIGIN + FALLBACK, "fresh offline document"));
   await pending;
   const cached = await worker.cacheStorage.match(FALLBACK, { cacheName: CACHE });
-  assert.equal(await cached.text(), "fresh offline document");
+  assert.equal(await cached.text(), fallbackDocument("fresh offline document"));
   assert.equal(cached.headers.get("content-security-policy"), contentSecurityPolicy);
   assert.equal(await worker.cacheStorage.match("/", { cacheName: CACHE }), undefined);
 });
@@ -187,7 +212,7 @@ test("migration preserves the v2 fallback and its versioned assets until a v3 do
   let offline = true;
   const worker = loadServiceWorker(async (request) => {
     if (offline) throw new TypeError("offline");
-    return typeof request === "string" ? responseFor(FALLBACK, "v3") : responseFor("/", "online");
+    return typeof request === "string" ? publicResource(request, "v3") : responseFor("/", "online");
   });
   const chunk = "/_next/static/chunks/app.js";
   await seed(worker, LEGACY, "/", responseFor("/", "v2"));
@@ -212,7 +237,7 @@ test("migration preserves the v2 fallback and its versioned assets until a v3 do
   await recovery.pending;
   offline = true;
   const updated = worker.dispatchFetch(requestFor("/", { mode: "navigate" }));
-  assert.equal(await (await updated.response).text(), "v3");
+  assert.equal(await (await updated.response).text(), fallbackDocument("v3"));
   assert.ok(await worker.cacheStorage.match("/", { cacheName: LEGACY }));
 });
 
@@ -317,19 +342,45 @@ test("install validates precache and refuses to activate without a valid fallbac
   assert.equal(worker.calls.skipWaiting, 0);
 });
 
-test("fresh install precaches the baseline HTML, manifest and branded offline icon", async () => {
+test("fresh install prepares the fallback CSS, JS and icon before allowing first navigation offline", async () => {
   let online = true;
-  const worker = loadServiceWorker(async (url) => {
+  let releaseStyle;
+  let requestStyle;
+  const stylesheetRequested = new Promise((resolve) => { requestStyle = resolve; });
+  const worker = loadServiceWorker(async (url, options) => {
     if (!online) throw new TypeError("offline");
-    const path = new URL(url).pathname;
-    const headers = path === SPLASH_ICON ? { "Content-Type": "image/png" } : undefined;
-    return responseFor(path, "precache", { headers });
+    assert.equal(options.credentials, "omit");
+    assert.equal(options.redirect, "error");
+    if (url === ORIGIN + FALLBACK_CSS) {
+      await new Promise((resolve) => { releaseStyle = resolve; requestStyle(); });
+    }
+    if (url === ORIGIN + FALLBACK) {
+      return responseFor(FALLBACK, fallbackDocument("precache") + `
+        <script src="https://outside.test/_next/static/chunks/no.js"></script>
+        <script src="/api/unsafe.js"></script>
+        <link rel="prefetch" href="/_next/static/chunks/unused.css">`);
+    }
+    return publicResource(url, "precache");
   });
-  await worker.dispatchLifecycle("install");
+  const installing = worker.dispatchLifecycle("install");
+  await stylesheetRequested;
+  assert.equal(await worker.cacheStorage.match(FALLBACK, { cacheName: CACHE }), undefined);
+  assert.equal(worker.calls.skipWaiting, 0);
+  releaseStyle();
+  await installing;
   assert.ok(await worker.cacheStorage.match(FALLBACK, { cacheName: CACHE }));
   assert.ok(await worker.cacheStorage.match(MANIFEST, { cacheName: CACHE }));
   assert.equal(worker.calls.skipWaiting, 1);
   online = false;
+  const offlineDocument = await worker.dispatchFetch(requestFor("/", { mode: "navigate" })).response;
+  assert.match(await offlineDocument.text(), /<main>precache<\/main>/);
+  for (const [path, destination, type] of [
+    [FALLBACK_CSS, "style", "text/css"],
+    [FALLBACK_JS, "script", "application/javascript"],
+  ]) {
+    const asset = await worker.dispatchFetch(requestFor(path, { destination })).response;
+    assert.equal(asset.headers.get("Content-Type"), type);
+  }
   const offlineIcon = await worker.dispatchFetch(requestFor(SPLASH_ICON, { destination: "image" })).response;
   assert.equal(offlineIcon.headers.get("Content-Type"), "image/png");
   assert.equal(await offlineIcon.text(), "precache");
@@ -340,3 +391,30 @@ test("fresh install precaches the baseline HTML, manifest and branded offline ic
   assert.match(registerSource, /navigator\.serviceWorker\.register\("\/sw\.js"\)/);
   assert.match(layoutSource, /<ServiceWorkerRegister\s*\/>/);
 });
+
+for (const [name, rejected] of [
+  ["unavailable asset", () => { throw new TypeError("offline"); }],
+  ["untrusted cache policy", () => responseFor(FALLBACK_CSS, "private CSS", {
+    headers: { "Content-Type": "text/css", "Cache-Control": "private" },
+  })],
+  ["wrong content type", () => responseFor(FALLBACK_CSS, "HTML masquerading as CSS")],
+  ["wrong asset URL", () => responseFor("/other.css", "CSS", { headers: { "Content-Type": "text/css" } })],
+]) {
+  test(name + " prevents replacing the previous offline document or activating a fresh worker", async () => {
+    const useFetch = async (request) => {
+      if (typeof request !== "string") return responseFor("/", "online");
+      if (request === ORIGIN + FALLBACK_CSS) return rejected();
+      return publicResource(request, "new");
+    };
+    const fresh = loadServiceWorker(useFetch);
+    await assert.rejects(fresh.dispatchLifecycle("install"), /No valid public offline document/);
+    assert.equal(fresh.calls.skipWaiting, 0);
+
+    const existing = loadServiceWorker(useFetch);
+    await seed(existing, CACHE, FALLBACK, responseFor(FALLBACK, "previous"));
+    const { response, pending } = existing.dispatchFetch(requestFor("/", { mode: "navigate" }));
+    assert.equal(await (await response).text(), "online");
+    await pending;
+    assert.equal(await (await existing.cacheStorage.match(FALLBACK, { cacheName: CACHE })).text(), "previous");
+  });
+}

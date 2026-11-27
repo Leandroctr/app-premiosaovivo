@@ -10,6 +10,8 @@ Os PNGs de 192 px, 512 px e o favicon de Prêmios ao Vivo substituem, na apresen
 
 O worker v3 replica a migração validada no White Label, com fallback público em `/pwa-offline` e exclusão de admin, API e requisições autorizadas. O cache inclui o PNG local de 512 px para preservar a marca no Splash. O launcher permanece no Splash durante a desconexão e consulta novamente as configurações quando a rede volta. A homologação física e a revalidação formal CETEC são etapas posteriores. [Protocolo V2.1](https://github.com/Leandroctr/pwa-install-landings/blob/b9a32b3302b1e1b0c472f528e90ae26aed94762e/docs/WHITE_LABEL_ONBOARDING_PROTOCOL.md)
 
+A preparação offline do worker v3 inclui os CSS e JavaScript versionados de mesma origem referenciados pelo fallback e o ícone local de 512 px. O worker valida a URL, o tipo e os cabeçalhos de cada recurso e grava o HTML após concluir a preparação. Assim, a primeira abertura pode ocorrer sem conexão após visitar somente a Central. Uma atualização incompleta preserva o último fallback válido e os recursos das versões anteriores. Depois de reconectar, o launcher volta a buscar as configurações e navega uma única vez.
+
 # PWA Install Experience
 
 **Projeto:** app-big-pwa  
