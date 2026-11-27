@@ -10,6 +10,22 @@ declare global {
 }
 
 const isDevelopment = process.env.NODE_ENV !== "production";
+let oneSignalReady = false;
+
+export function isOneSignalReady() {
+  return oneSignalReady;
+}
+
+export async function requestPushSubscription() {
+  if (!oneSignalReady || typeof Notification === "undefined" || Notification.permission === "denied") {
+    return false;
+  }
+  if (Notification.permission === "granted") {
+    await OneSignal.User.PushSubscription.optIn();
+    return true;
+  }
+  return OneSignal.Notifications.requestPermission();
+}
 
 function debugLog(message: string, metadata?: Record<string, unknown>) {
   if (isDevelopment) {
@@ -35,11 +51,7 @@ function debugError(message: string, error?: unknown) {
   }
 }
 
-// Evento disparado sempre que uma tentativa de sincronizar a inscricao push
-// termina (com sucesso ou falha) — inclusive quando nao ha nada para
-// sincronizar (usuario ainda nao optou por notificacoes). app/page.tsx ouve
-// este evento (uma vez) para saber quando e seguro redirecionar para
-// platformUrl sem depender apenas do timeout fixo.
+// Sem inscrição ativa ou com falha, o launcher mantém seu temporizador.
 function dispatchPushSyncSettled(ok: boolean) {
   window.dispatchEvent(new CustomEvent("push-sync-settled", { detail: { ok } }));
 }
@@ -91,8 +103,10 @@ export function OneSignalInitializer() {
     void OneSignal.init({
       appId,
       autoResubscribe: true,
+      // Keep the existing worker URL for subscribers and reserve root scope for the PWA worker.
+      serviceWorkerOverrideForTypical: true,
       serviceWorkerParam: { scope: "/onesignal/" },
-      serviceWorkerPath: "onesignal/OneSignalSDKWorker.js",
+      serviceWorkerPath: "OneSignalSDKWorker.js",
     }).then(async () => {
       debugLog("OneSignal init resolved.", {
         hasActiveSubscription: Boolean(OneSignal.User.PushSubscription.id),
@@ -116,6 +130,7 @@ export function OneSignalInitializer() {
 
       const currentId = OneSignal.User.PushSubscription.id;
       const currentOptedIn = OneSignal.User.PushSubscription.optedIn;
+      oneSignalReady = true;
 
       if (currentId && currentOptedIn) {
         debugLog("Active subscription found; syncing.");

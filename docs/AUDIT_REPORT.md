@@ -1355,3 +1355,21 @@ o warning preexistente de `formatDimension`), M-7 13/13, CETEC 8/8, auth/MFA
 16/16, upload 22/22, push 8/8 + 7/7, PWA 15/15, schema 8/8, CI policy 15/15 e
 git diff check. O npm audit encontrou zero vulnerabilidades, incluindo zero
 HIGH e zero CRITICAL.
+
+## 22. Adequação White Label V2.1 do Prêmios ao Vivo
+
+O port local usa o código homologado do Oba Prêmios e o worker v3 comum ao MegaBingo7. A Central consulta os dados do próprio tenant e a adequação se limita às superfícies públicas de instalação, abertura, ícones, notificações e offline. O ajuste preserva os 23 controles CETEC e R-1, os guards administrativos, os dados legados, o App ID e as inscrições existentes.
+
+- **C-2.** O launcher renderiza somente o Splash nativo. O campo de HTML legado continua disponível no cadastro histórico.
+- **M-2.** Os cinco headers permanecem. Com App ID válido no build, a exceção JSONP usa o caminho desse App ID no documento navegável da raiz. Central, offline, admin, RSC e prefetch usam a CSP geral.
+- **B-5.** Raiz privada e sem armazenamento, migração v2→v3 e fallback público validado em `/pwa-offline`. O worker mantém o último fallback válido e não atende admin, API ou requisições autorizadas com esse documento.
+- **M-5.** A auditoria do lockfile antigo encontrou uma entrada crítica e duas altas em produção. Next.js e Sharp foram alinhados ao lockfile homologado do Oba Prêmios, com versões fixas e o mesmo critério de auditoria.
+
+Para recuperação antes de publicar, restaurar o diff local do port. Para recuperação após uma futura publicação, preservar `/pwa-offline` e validar a transição de cache no navegador, seguindo o [manual V2.1](https://github.com/Leandroctr/pwa-install-landings/blob/b9a32b3302b1e1b0c472f528e90ae26aed94762e/docs/WHITE_LABEL_OPERATIONS.md). M-2, B-5 e C-2 seguem sujeitos à revalidação formal.
+
+### Registro de integração — 27/11/2026
+
+- O responsável aceitou a revisão visual 03 da landing com ressalva estética e autorizou a publicação técnica do PWA no projeto Vercel existente `moline/app-premiosaovivo`.
+- O destino `https://app-premiosaovivo.com` respondeu HTTP 200 na checagem anterior à integração. A landing permanece em `feat/landing-premiosaovivo`, com `SITE_ID=premiosaovivo`. O domínio `apk-premiosaovivo.online` segue com `serverHold` no RDAP e `NXDOMAIN` no DNS. A regularização é com a GoDaddy.
+- Os SHAs, o CI, o deployment e as evidências públicas são registrados no PR de integração após as verificações. A [Central pública](https://pwa.app-premiosaovivo.com/instalar) é a dependência de publicação da landing.
+- Permanecem pendentes a homologação física pelo responsável, a revalidação formal CETEC de M-2, B-5 e C-2 e a confirmação de liberação comercial. A validação técnica usa navegação pública e não envia notificações.

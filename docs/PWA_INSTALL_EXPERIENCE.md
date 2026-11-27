@@ -1,5 +1,15 @@
 # PWA_INSTALL_EXPERIENCE.md
 
+## Adequação local White Label V2.1
+
+A Central `/instalar` usa o nome, as cores e os ícones do próprio tenant. O fluxo Android usa `beforeinstallprompt` quando disponível e acompanha `appinstalled`. O iPhone usa as instruções do Safari. A Central detecta o modo standalone e retorna ao launcher por navegação de documento.
+
+O launcher renderiza o Splash React/CSS com redução de movimento e lê o estado atual do Clube VIP. O temporizador aguarda a solicitação de permissão e somente a sincronização bem-sucedida antecipa a navegação. O App ID configurado e a URL histórica do worker OneSignal são preservados, com escopo dedicado `/onesignal/`.
+
+Os PNGs de 192 px, 512 px e o favicon de Prêmios ao Vivo substituem, na apresentação, os URLs históricos observados e os fallbacks genéricos. Novos URLs configurados pelo painel continuam com precedência. Os arquivos históricos e os valores do painel permanecem disponíveis. O manifest usa `purpose: any` para a arte regular.
+
+O worker v3 replica a migração validada no White Label, com fallback público em `/pwa-offline` e exclusão de admin, API e requisições autorizadas. O cache inclui o PNG local de 512 px para preservar a marca no Splash. O launcher permanece no Splash durante a desconexão e consulta novamente as configurações quando a rede volta. A homologação física e a revalidação formal CETEC são etapas posteriores. [Protocolo V2.1](https://github.com/Leandroctr/pwa-install-landings/blob/b9a32b3302b1e1b0c472f528e90ae26aed94762e/docs/WHITE_LABEL_ONBOARDING_PROTOCOL.md)
+
 # PWA Install Experience
 
 **Projeto:** app-big-pwa  

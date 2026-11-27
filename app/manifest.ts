@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { getAppSettings } from "@/lib/app-settings.server";
+import { getPwaIcons } from "@/lib/pwa-icon-assets";
 
 export const dynamic = "force-dynamic";
 
@@ -12,8 +13,7 @@ function getMimeType(url: string): string {
 export default async function manifest(): Promise<MetadataRoute.Manifest> {
   const settings = await getAppSettings();
 
-  const icon192Src = settings.icon192Url || "/icons/icon-192.svg";
-  const icon512Src = settings.icon512Url || "/icons/icon-512.svg";
+  const { icon192: icon192Src, icon512: icon512Src } = getPwaIcons(settings);
 
   return {
     name: settings.appName,
@@ -36,7 +36,7 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
         src: icon512Src,
         sizes: "512x512",
         type: getMimeType(icon512Src),
-        purpose: "maskable",
+        purpose: "any",
       },
     ],
   };

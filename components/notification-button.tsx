@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import OneSignal from "react-onesignal";
+import { requestPushSubscription } from "@/components/onesignal-initializer";
 
 type NotificationButtonProps = {
+  activating: boolean;
+  onActivationChange: (activating: boolean) => void;
   themeColor: string;
 };
 
@@ -12,23 +14,25 @@ type Status = {
   message: string;
 };
 
-export function NotificationButton({ themeColor }: NotificationButtonProps) {
+export function NotificationButton({ activating, onActivationChange, themeColor }: NotificationButtonProps) {
   const [status, setStatus] = useState<Status>({ type: "idle", message: "" });
 
   async function activateNotifications() {
     setStatus({ type: "loading", message: "Ativando notificacoes..." });
+    onActivationChange(true);
 
     try {
-      await OneSignal.Slidedown.promptPush({ force: true });
-      const optedIn = OneSignal.User.PushSubscription.optedIn;
+      const permissionGranted = await requestPushSubscription();
       setStatus({
-        type: optedIn ? "success" : "error",
-        message: optedIn
-          ? "Notificacoes ativadas com sucesso."
+        type: permissionGranted ? "success" : "error",
+        message: permissionGranted
+          ? "Permissão concedida. Finalizando a inscrição..."
           : "Permissao necessaria para receber notificacoes.",
       });
     } catch {
       setStatus({ type: "error", message: "Nao foi possivel ativar as notificacoes." });
+    } finally {
+      onActivationChange(false);
     }
   }
 
@@ -36,7 +40,7 @@ export function NotificationButton({ themeColor }: NotificationButtonProps) {
     <div className="grid gap-2">
       <button
         className="flex min-h-14 items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 text-base font-bold text-slate-800 shadow-sm transition hover:border-slate-300 focus:outline-none focus:ring-4 focus:ring-slate-200 disabled:cursor-not-allowed disabled:opacity-70"
-        disabled={status.type === "loading"}
+        disabled={activating}
         onClick={activateNotifications}
         type="button"
       >
