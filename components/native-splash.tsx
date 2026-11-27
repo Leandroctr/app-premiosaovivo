@@ -8,6 +8,7 @@ type NativeSplashProps = {
   appName: string;
   logoUrl: string;
   iconUrl: string;
+  offlineIconUrl?: string;
   splashImageUrl: string;
   themeColor: string;
   backgroundColor: string;
@@ -29,9 +30,15 @@ function themeColor(value: string, fallback: string) {
   return /^#(?:[\da-f]{3}|[\da-f]{6})$/i.test(value) ? value : fallback;
 }
 
-function SplashMark({ logo, icon, appName }: { logo: string; icon: string; appName: string }) {
+function SplashMark({ logo, icon, offlineIcon, appName }: {
+  logo: string;
+  icon: string;
+  offlineIcon?: string;
+  appName: string;
+}) {
   const [failed, setFailed] = useState<string[]>([]);
-  const source = [logo, icon].find((candidate) => candidate && !failed.includes(candidate));
+  const sources = offlineIcon ? [offlineIcon] : [logo, icon];
+  const source = sources.find((candidate) => candidate && !failed.includes(candidate));
   return (
     <div className={styles.mark}>
       {source ? (
@@ -41,6 +48,8 @@ function SplashMark({ logo, icon, appName }: { logo: string; icon: string; appNa
           height={160}
           loading="eager"
           onError={() => setFailed((previous) => [...previous, source])}
+          // Use the exact offline cache key, without the Next.js deployment query.
+          overrideSrc={offlineIcon}
           src={source}
           unoptimized
           width={160}
@@ -53,12 +62,13 @@ function SplashMark({ logo, icon, appName }: { logo: string; icon: string; appNa
 }
 
 export function NativeSplash({
-  appName, logoUrl, iconUrl, splashImageUrl, themeColor: accent, backgroundColor,
+  appName, logoUrl, iconUrl, offlineIconUrl, splashImageUrl, themeColor: accent, backgroundColor,
   splashTitle, splashMessage, openUrl, supportUrl, hasPlatformError, onOpen, children,
 }: NativeSplashProps) {
   const artwork = imageSource(splashImageUrl);
   const logo = imageSource(logoUrl);
   const icon = imageSource(iconUrl);
+  const offlineIcon = imageSource(offlineIconUrl ?? "") || undefined;
   const style = {
     "--splash-accent": themeColor(accent, "#1683ab"),
     "--splash-base": themeColor(backgroundColor, "#f6f7fb"),
@@ -74,7 +84,7 @@ export function NativeSplash({
 
       <section aria-labelledby="splash-title" className={styles.content}>
         <div className={styles.emblem}>
-          <SplashMark key={logo + "|" + icon} logo={logo} icon={icon} appName={appName} />
+          <SplashMark key={offlineIcon ?? (logo + "|" + icon)} logo={logo} icon={icon} offlineIcon={offlineIcon} appName={appName} />
         </div>
 
         <div className={styles.copy}>
